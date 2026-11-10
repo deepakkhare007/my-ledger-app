@@ -1,18 +1,18 @@
 feature,area,priority,original,clone,notes
-Phone number + OTP sign-in,onboarding,must,yes,no,
-Create a khata (business) book,onboarding,must,yes,no,first-run creates the default book
-Customer list with running balance per customer,ledger,must,yes,no,S02
-Add a customer (manual or from phone contacts),ledger,must,yes,no,contacts import is optional not required
-Add a transaction: You Gave / You Got with amount,ledger,must,yes,no,core loop - S05
-Per-customer transaction history (ledger detail),ledger,must,yes,no,S04
+Phone number + OTP sign-in,onboarding,must,yes,no,S01 stub only - vertical slice treats the default book as already signed in
+Create a khata (business) book,onboarding,must,yes,partial,"default book auto-exists in seed data; no explicit create-book UI yet (S08 stub)"
+Customer list with running balance per customer,ledger,must,yes,yes,"S02 - summary bar, search, empty state all built"
+Add a customer (manual or from phone contacts),ledger,must,yes,partial,"S03 - manual entry only, no contacts import"
+Add a transaction: You Gave / You Got with amount,ledger,must,yes,yes,core loop - S05, both types, amount validation, note, date
+Per-customer transaction history (ledger detail),ledger,must,yes,yes,S04 - balance badge, button pair, reverse-chronological list, empty state
 Attach a photo to a transaction (bill photo),ledger,must,yes,no,
-Payment reminder via WhatsApp/SMS with date picker,reminders,must,yes,no,S07
-Shareable PDF customer statement,reports,must,yes,no,S06 - gated behind paywall in original per fixes.md; keep free in clone
-App lock (PIN),security,must,yes,no,S12
-Offline-first entry (save instantly no network required),ledger,must,no,no,"not in original today - #2 fix-plan item in fixes.md, 15 reviews on lag/sync; this IS our differentiator"
-Multiple khata books (switch business/personal),ledger,should,yes,no,S08
-UPI payment request deep-link (open customer's UPI app),payments,should,yes,no,F04 - reminder/request only, not settlement
-Payment mode field per transaction (Cash/UPI/Bank),ledger,should,no,no,"requested feature, not in original - 5 reviews per fixes.md"
+Payment reminder via WhatsApp/SMS with date picker,reminders,must,yes,partial,"S07 - scheduling/channel UI works end to end, but the send itself is simulated; real WhatsApp Business Cloud API + SMS fallback is a replica-backend task"
+Shareable PDF customer statement,reports,must,yes,no,S06 stub - gated behind paywall in original per fixes.md; keep free in clone
+App lock (PIN),security,must,yes,no,S12 stub
+Offline-first entry (save instantly no network required),ledger,must,no,no,"not in original today - #2 fix-plan item in fixes.md, 15 reviews on lag/sync; this IS our differentiator. Not built yet: this vertical slice is server-rendered only, no Dexie/offline layer from architecture.md"
+Multiple khata books (switch business/personal),ledger,should,yes,no,S08 stub
+UPI payment request deep-link (open customer's UPI app),payments,should,yes,no,"F04 - reminder/request only, not settlement. Not built yet, only WhatsApp/SMS reminder scheduling exists"
+Payment mode field per transaction (Cash/UPI/Bank),ledger,should,no,yes,"requested feature, not in original - 5 reviews per fixes.md. Built as an optional select on S05"
 Bill-level tracking (bill number, settled/unsettled, overdue days),ledger,should,no,no,"requested feature, not in original - 7 reviews per fixes.md"
 CSV/PDF export and full data backup/restore (free),data,should,yes,no,"original gates export behind paywall per fixes.md; keep free in clone"
 Business card generator,marketing,should,yes,no,S09
