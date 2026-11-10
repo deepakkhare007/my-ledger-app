@@ -1,26 +1,81 @@
 @import "tailwindcss";
 
+/*
+ * Design tokens — source of truth is replica/design/tokens.json.
+ * Keep these in sync by hand for now (no build step reads the JSON yet).
+ * Utility class names below intentionally shorten a couple of role names
+ * so components read as `bg-surface text-muted`, not `text-text-muted`:
+ *   "text"        role -> --color-ink    -> text-ink
+ *   "text-muted"  role -> --color-muted  -> text-muted
+ *   "border-input" role -> --color-input -> border-input
+ * Every other role keeps its tokens.json name 1:1 (bg, surface, border,
+ * accent, on-accent, danger, success, warning).
+ */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #ffffff;
+  --surface: #f5f6f8;
+  --border: #e2e5ea;
+  --input: #7d8591;
+  --ink: #13161b;
+  --muted: #5a6270;
+  --accent: #1d6f5c;
+  --on-accent: #ffffff;
+  --danger: #b42318;
+  --success: #17804f;
+  --warning: #9a5b00;
+
+  --radius-sm-value: 6px;
+  --radius-md-value: 10px;
+  --radius-lg-value: 16px;
+  --radius-pill-value: 999px;
+
+  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.1);
+  --shadow-pop: 0 12px 32px rgba(16, 24, 40, 0.16);
+
+  --touch-min: 44px;
+  --touch-comfortable: 48px;
 }
 
+/*
+ * Tailwind v4 registers a utility-generating token only for variables
+ * declared directly inside @theme — a --radius-sm defined only in :root
+ * (above) is a plain CSS variable, not a `rounded-sm` source. Colour and
+ * radius tokens below are deliberately named differently from their :root
+ * counterparts (no self-referencing var()) so replica-brand can repoint the
+ * :root values later without touching this block.
+ */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-on-accent: var(--on-accent);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+
+  --radius-sm: var(--radius-sm-value);
+  --radius-md: var(--radius-md-value);
+  --radius-lg: var(--radius-lg-value);
+  --radius-pill: var(--radius-pill-value);
+
+  --font-sans: var(--font-hind), "Noto Sans Devanagari", system-ui, -apple-system,
+    "Segoe UI", Roboto, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+/*
+ * No dark-mode block: this is a counter-use app read in bright shop light,
+ * not a desktop tool used at night. If a dark theme is wanted later it needs
+ * its own measured palette and a fresh contrast.py pass, not an inversion.
+ */
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
 }

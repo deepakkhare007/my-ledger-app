@@ -1,0 +1,34 @@
+feature,area,priority,original,clone,notes
+Phone number + OTP sign-in,onboarding,must,yes,no,
+Create a khata (business) book,onboarding,must,yes,no,first-run creates the default book
+Customer list with running balance per customer,ledger,must,yes,no,S02
+Add a customer (manual or from phone contacts),ledger,must,yes,no,contacts import is optional not required
+Add a transaction: You Gave / You Got with amount,ledger,must,yes,no,core loop - S05
+Per-customer transaction history (ledger detail),ledger,must,yes,no,S04
+Attach a photo to a transaction (bill photo),ledger,must,yes,no,
+Payment reminder via WhatsApp/SMS with date picker,reminders,must,yes,no,S07
+Shareable PDF customer statement,reports,must,yes,no,S06 - gated behind paywall in original per fixes.md; keep free in clone
+App lock (PIN),security,must,yes,no,S12
+Offline-first entry (save instantly no network required),ledger,must,no,no,"not in original today - #2 fix-plan item in fixes.md, 15 reviews on lag/sync; this IS our differentiator"
+Multiple khata books (switch business/personal),ledger,should,yes,no,S08
+UPI payment request deep-link (open customer's UPI app),payments,should,yes,no,F04 - reminder/request only, not settlement
+Payment mode field per transaction (Cash/UPI/Bank),ledger,should,no,no,"requested feature, not in original - 5 reviews per fixes.md"
+Bill-level tracking (bill number, settled/unsettled, overdue days),ledger,should,no,no,"requested feature, not in original - 7 reviews per fixes.md"
+CSV/PDF export and full data backup/restore (free),data,should,yes,no,"original gates export behind paywall per fixes.md; keep free in clone"
+Business card generator,marketing,should,yes,no,S09
+Inventory / stock list with low-stock alerts,inventory,should,yes,no,"S14 - gap: no official step-by-step source found, only listing/third-party mentions"
+Multi-language UI (11 languages),localization,could,yes,no,S13 - large content cost for v1
+Exclude a transaction from totals without deleting (doubtful/bad-debt flag),ledger,could,no,no,"requested feature, not in original - part of 6-review 'control over data' theme in fixes.md"
+Move a customer between khata books,ledger,could,no,no,"requested feature, not in original per fixes.md"
+Profit/loss and cash-vs-online report,reports,could,yes,no,"S15 - reviewers complain original's P&L math is wrong per fixes.md; must get this right if built"
+QR-code-based in-person collection (physical QR mailed to shop),payments,skip,yes,skip,requires becoming/partnering with a licensed payment aggregator and physical fulfillment
+Bank account linking for direct UPI settlement,payments,skip,yes,skip,regulated payments territory - not a UI clone
+Loan Khata (in-app lending),lending,skip,yes,skip,requires NBFC partnership and lending license
+GST invoice creation (party GSTIN/state, HSN/SAC, item table),invoicing,must,n/a,no,"v2 scope - modeled on Vyapar's guide, not Khatabook's own (Khatabook's GST flow not publicly documented in this depth)"
+Auto tax-type selection (CGST+SGST local vs IGST inter-state),invoicing,must,n/a,no,"v2 - Vyapar's one genuinely tricky rule, per guide step 11"
+Tax Invoice vs Bill of Supply header switch,invoicing,should,n/a,no,v2 - for GST-unregistered or composition-dealer parties
+Party (B2B customer) profile with GSTIN + state verification,invoicing,must,n/a,no,v2 - S17
+Print/share invoice via WhatsApp/Email/PDF,invoicing,should,n/a,no,v2
+Invoice numbering/sequencing,invoicing,should,n/a,no,"v2 - not documented even in Vyapar's own guide; needs its own design decision in replica-architect, not a copy"
+GSTR-1/GSTR-3B one-click report generation,invoicing,could,yes (Vyapar),no,"v2 stretch - Vyapar marketing claim only, no detail found"
+Staff attendance and payroll (Pagarkhata),staff,skip,yes,skip,confirmed to be a separate Khatabook product not part of the main ledger app
