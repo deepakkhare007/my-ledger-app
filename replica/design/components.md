@@ -38,10 +38,15 @@ Card
   used on   S02, S04, S14 (as item rows)
 
 Badge / balance pill
-  variants  outflow (you-gave), inflow (you-got), low-stock, neutral
+  variants  outflow (you-gave), inflow (you-got), low-stock, out-of-stock, neutral
   states    default
-  tokens    outflow: text danger on bg or surface; inflow: text success on bg or surface;
-            low-stock: text warning; neutral: text text-muted
+  tokens    solid background + on-accent (white) text, not a colour-tinted background with
+            colour-on-colour text — outflow/out-of-stock: bg danger; inflow: bg success;
+            low-stock: bg warning; neutral: bg border, text text-muted. (A tinted-background
+            version failed an axe WCAG AA contrast check in e2e/f01-add-transaction.spec.ts —
+            4.02:1 against the needed 4.5:1 — because the tint sits closer to the text's own
+            hue, lowering contrast further; solid + white text reuses the already-verified
+            on-accent/accent pattern instead.)
   a11y      colour is never the only signal — every balance pill also carries the word
             "you'll give" / "you'll get" (or the Hindi equivalent) in text, not just red/green,
             for colour-blind users and because at a glance in bright light, hue reads slower

@@ -12,7 +12,12 @@ export function NewCustomerForm() {
 
   return (
     <form action={formAction} className="flex flex-col gap-4">
-      <Input label="Customer name" name="name" placeholder="e.g. Ramesh Kirana Store" required />
+      {/* No `required` attribute: the server action already validates this
+          (zod) and renders a styled error below, consistent with every
+          other field. A native `required` would show the browser's own
+          unstyled validation bubble instead, on an empty submit — a
+          second, inconsistent error UI for the same case. */}
+      <Input label="Customer name" name="name" placeholder="e.g. Ramesh Kirana Store" />
       <Input label="Phone number (optional)" name="phoneNumber" type="tel" placeholder="+91" />
       {state.error && (
         <p role="alert" className="text-sm text-danger">

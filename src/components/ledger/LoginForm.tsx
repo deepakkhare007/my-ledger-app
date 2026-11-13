@@ -31,7 +31,6 @@ export function LoginForm() {
           placeholder="+919876500001"
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
-          required
         />
         {requestState.error && (
           <p role="alert" className="text-sm text-danger">
@@ -49,7 +48,7 @@ export function LoginForm() {
     <form action={verifyAction} className="flex flex-col gap-4">
       <input type="hidden" name="phone" value={phone} />
       <p className="text-sm text-muted">Code sent to {phone}</p>
-      <Input label="Enter the code" name="otp" inputMode="numeric" autoFocus required />
+      <Input label="Enter the code" name="otp" inputMode="numeric" autoFocus />
       {verifyState.error && (
         <p role="alert" className="text-sm text-danger">
           {verifyState.error}

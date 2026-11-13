@@ -140,10 +140,20 @@ export async function createCustomerAction(
   redirect(`/customers/${customer.id}`);
 }
 
+const positiveAmount = z
+  // A plain z.coerce.number() surfaces its own "Expected number, received
+  // NaN" message for non-numeric input before .positive()'s custom message
+  // ever runs — confusing, leaky wording for a shopkeeper who typed letters
+  // into an amount field. Validating the raw string ourselves keeps one
+  // friendly message for every bad input (empty, zero, negative, "abc").
+  .string()
+  .refine((v) => Number.isFinite(Number(v)) && Number(v) > 0, "Enter an amount greater than zero")
+  .transform((v) => Number(v));
+
 const transactionSchema = z.object({
   customerId: z.string().uuid(),
   type: z.enum(["you_gave", "you_got"]),
-  amount: z.coerce.number().positive("Enter an amount greater than zero"),
+  amount: positiveAmount,
   note: z.string().trim().max(500).optional(),
   transactionDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a date"),
   paymentMode: z.enum(["cash", "upi", "bank", "other"]).optional().or(z.literal("")),
@@ -158,7 +168,7 @@ export async function addTransactionAction(
   const parsed = transactionSchema.safeParse({
     customerId: formData.get("customerId"),
     type: formData.get("type"),
-    amount: formData.get("amount"),
+    amount: String(formData.get("amount") ?? ""),
     note: formData.get("note"),
     transactionDate: formData.get("transactionDate"),
     paymentMode: formData.get("paymentMode"),

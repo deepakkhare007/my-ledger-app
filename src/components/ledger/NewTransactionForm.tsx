@@ -35,7 +35,9 @@ export function NewTransactionForm({
         {isGave ? "You Gave — a credit entry (they owe you more)" : "You Got — a payment (they owe you less)"}
       </div>
 
-      <Input label="Amount (₹)" name="amount" numeric required placeholder="0" />
+      {/* No `required`: see NewCustomerForm.tsx — the server action's own
+          validation and styled error cover this consistently. */}
+      <Input label="Amount (₹)" name="amount" numeric placeholder="0" />
       <Input label="Note (optional)" name="note" placeholder="e.g. 2 bags rice" />
       <Input label="Date" name="transactionDate" type="date" defaultValue={today()} required />
 

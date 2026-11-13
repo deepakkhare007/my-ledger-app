@@ -7,11 +7,19 @@ const variantClasses: Record<Variant, string> = {
   // These reuse the danger/success roles deliberately (see components.md) rather
   // than adding new colour roles for what is the same "needs attention" /
   // "good news" semantic as errors and success states elsewhere.
-  outflow: "bg-danger/10 text-danger",
-  inflow: "bg-success/10 text-success",
-  "low-stock": "bg-warning/10 text-warning",
-  "out-of-stock": "bg-danger/10 text-danger",
-  neutral: "bg-border/40 text-muted",
+  //
+  // Solid background + on-accent (white) text, not a soft colour-tinted
+  // background with colour-on-colour text: an axe scan in e2e/f01-add-
+  // transaction.spec.ts caught the tinted version failing WCAG AA (4.02:1,
+  // needs 4.5:1) — text-success *does* pass against solid bg/surface
+  // (tokens.json's own contrast check), but a 10%-opacity tint sits closer
+  // to the text's own hue, which only lowers the ratio further. Solid +
+  // white text reuses the already-verified on-accent/accent pattern instead.
+  outflow: "bg-danger text-on-accent",
+  inflow: "bg-success text-on-accent",
+  "low-stock": "bg-warning text-on-accent",
+  "out-of-stock": "bg-danger text-on-accent",
+  neutral: "bg-border text-muted",
 };
 
 export interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
