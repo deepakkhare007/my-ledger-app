@@ -33,16 +33,30 @@ setup guide — re-read it before `/replica-deploy`.
 4. Phone sign-in needs no real SMS provider locally: `supabase/config.toml`
    sets a fixed test OTP (`123456`) for the seeded phone number
    (`+910000000001`) under `[auth.sms.test_otp]`. Sign in with that number
-   and that code. For a different phone number, Studio's own Auth panel
-   (`http://127.0.1:54323`, the port from `supabase status`) can read the
-   real OTP from the local email/SMS test inbox... actually SMS has no test
-   inbox the way email does — add more `[auth.sms.test_otp]` entries for
-   any other numbers you want to sign in as locally.
+   and that code. A provider type still has to be configured
+   (`[auth.sms.twilio]`, fake credentials in `supabase/.env`, git-ignored)
+   for GoTrue to accept phone sign-in requests at all — it just never
+   actually calls Twilio for a number listed in `test_otp`. For any other
+   phone number you want to sign in as locally, add it to
+   `[auth.sms.test_otp]` too; there's no real SMS provider in local dev.
 5. `npm run db:reset` re-applies migrations + seed from scratch (destructive
    to local data only). `npm run db:stop` stops the containers.
 6. Razorpay/WhatsApp/MSG91 still need their own real test-mode accounts to
    exercise those flows end to end (see `.env.example`) — Docker Desktop
    only replaces the Supabase piece.
+
+**Verified against this local stack** (not just typechecked): signed in
+through the real phone+OTP flow end to end — request OTP, enter
+`123456`, land on `/customers` with a `profiles` row and a default
+"My Shop" `khata_books` row created by the `on_auth_user_created` trigger,
+zero console/server errors on first load. Two framework issues surfaced and
+were fixed during this check, unrelated to Supabase itself:
+`cacheComponents` (a create-next-app default) conflicted with Supabase
+auth-js's internal `Date.now()` expiry check in a way Next 16 flags as an
+"unstable value" — turned off in `next.config.ts` since nothing in this
+app is a public/cacheable static page anyway. Separately, `middleware.ts`
+got migrated to `proxy.ts` via the official codemod (Next 16 deprecated
+the old convention).
 
 ## Auth
 
