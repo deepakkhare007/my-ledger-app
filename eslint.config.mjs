@@ -12,6 +12,12 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Playwright's own generated/bundled output (replica-test) — not
+    // source code, and its HTML reporter ships minified JS that isn't
+    // meant to be linted.
+    "playwright-report/**",
+    "test-results/**",
+    "blob-report/**",
   ]),
 ]);
 

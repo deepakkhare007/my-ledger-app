@@ -271,11 +271,15 @@ template = "Your code is {{ .Code }}"
 # Controls the minimum amount of time that must pass before sending another sms otp.
 max_frequency = "5s"
 
-# Local dev only: a fixed OTP for the seed user, so you can sign in without a
+# Local dev only: fixed OTPs so you (and the e2e tests) can sign in without a
 # real SMS provider. None of this exists once you point at a real SMS
-# provider (or a hosted project) — see replica/backend.md.
+# provider (or a hosted project) — see replica/backend.md. The second number
+# has no seed data of its own — e2e uses it to prove the first user's data
+# is invisible to a second user (RLS), per replica/backend.md's open
+# "not yet tested with a second real user" checklist item.
 [auth.sms.test_otp]
 910000000001 = "123456"
+910000000002 = "654321"
 
 # Configure logged in session timeouts.
 # [auth.sessions]
