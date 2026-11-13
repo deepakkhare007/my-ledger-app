@@ -10,7 +10,7 @@ const links = [
   { href: "/invoices/new", label: "New invoice — v2 (S16)" },
   { href: "/settings/app-lock", label: "App lock (S12)" },
   { href: "/settings/language", label: "Language (S13)" },
-  { href: "/login", label: "Sign-in screen (S01)" },
+  { href: "/settings/account", label: "Account: export / delete data" },
   { href: "/design", label: "Design system check" },
 ];
 

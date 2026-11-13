@@ -13,6 +13,7 @@ export type Customer = {
   khataBookId: string;
   name: string;
   phoneNumber: string | null;
+  whatsappOptOut: boolean;
   createdAt: string;
 };
 

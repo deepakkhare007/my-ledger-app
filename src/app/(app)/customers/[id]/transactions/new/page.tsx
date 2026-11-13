@@ -3,8 +3,6 @@ import { NewTransactionForm } from "@/components/ledger/NewTransactionForm";
 import { getCustomer } from "@/lib/store";
 import type { TransactionType } from "@/lib/types";
 
-export const instant = false;
-
 // S05 — Add transaction.
 export default async function NewTransactionPage({
   params,
@@ -15,7 +13,7 @@ export default async function NewTransactionPage({
 }) {
   const { id } = await params;
   const { type: rawType } = await searchParams;
-  const customer = getCustomer(id);
+  const customer = await getCustomer(id);
 
   if (!customer) {
     notFound();

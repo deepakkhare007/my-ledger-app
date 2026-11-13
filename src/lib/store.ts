@@ -1,119 +1,140 @@
 import "server-only";
+import { createClient } from "@/lib/supabase/server";
+import { requireUser } from "@/lib/auth";
 import type { Customer, KhataBook, Reminder, Transaction } from "./types";
 
-// In-memory fake data layer for the vertical slice (replica-build step 2).
-// Function names and shapes are written to match what replica-architect's
-// sync/pull + sync/push routes will return, so swapping this module for a
-// real Postgres-backed one later changes no screen code.
+// Real Supabase-backed data layer. Same exported function names/shapes as
+// the in-memory one replica-build wrote (src/lib/store.ts, now replaced) —
+// screens didn't need to change, only gain `await` at call sites, since the
+// fake layer was already async-shaped for exactly this swap.
 //
-// Known limitation (see replica/build-log.md): state lives in this module's
-// memory, so it resets on a server restart. Fine for a vertical slice, not
-// for anything else.
+// Every query here is additionally scoped by the RLS policies in
+// supabase/migrations/0001_init.sql — passing the wrong id is a 0-row
+// result, never another user's data, even if a filter below has a bug.
 
-const DEFAULT_BOOK: KhataBook = {
-  id: "book-1",
-  businessName: "My Shop",
-  bookType: "business",
-};
+type Row = Record<string, unknown>;
 
-let customers: Customer[] = [
-  {
-    id: "cust-1",
-    khataBookId: DEFAULT_BOOK.id,
-    name: "Ramesh Kirana Store",
-    phoneNumber: "+919876500001",
-    createdAt: "2026-10-01T09:00:00.000Z",
-  },
-  {
-    id: "cust-2",
-    khataBookId: DEFAULT_BOOK.id,
-    name: "Suresh Medical",
-    phoneNumber: "+919876500002",
-    createdAt: "2026-10-03T09:00:00.000Z",
-  },
-];
-
-let transactions: Transaction[] = [
-  {
-    id: "txn-1",
-    customerId: "cust-1",
-    khataBookId: DEFAULT_BOOK.id,
-    type: "you_gave",
-    amountCents: 24000,
-    paymentMode: null,
-    note: "2 bags rice",
-    transactionDate: "2026-11-05",
-    createdAt: "2026-11-05T10:00:00.000Z",
-  },
-  {
-    id: "txn-2",
-    customerId: "cust-2",
-    khataBookId: DEFAULT_BOOK.id,
-    type: "you_gave",
-    amountCents: 12000,
-    paymentMode: null,
-    note: "medicines",
-    transactionDate: "2026-11-07",
-    createdAt: "2026-11-07T11:00:00.000Z",
-  },
-  {
-    id: "txn-3",
-    customerId: "cust-2",
-    khataBookId: DEFAULT_BOOK.id,
-    type: "you_got",
-    amountCents: 3500,
-    paymentMode: "cash",
-    note: "part payment",
-    transactionDate: "2026-11-08",
-    createdAt: "2026-11-08T12:00:00.000Z",
-  },
-];
-
-let reminders: Reminder[] = [];
-
-let nextId = 100;
-function freshId(prefix: string) {
-  nextId += 1;
-  return `${prefix}-${nextId}`;
+function mapCustomer(row: Row): Customer {
+  return {
+    id: row.id as string,
+    khataBookId: row.khata_book_id as string,
+    name: row.name as string,
+    phoneNumber: (row.phone_number as string | null) ?? null,
+    whatsappOptOut: Boolean(row.whatsapp_opt_out),
+    createdAt: row.created_at as string,
+  };
 }
 
-export function getDefaultBook(): KhataBook {
-  return DEFAULT_BOOK;
+function mapTransaction(row: Row): Transaction {
+  return {
+    id: row.id as string,
+    customerId: row.customer_id as string,
+    khataBookId: row.khata_book_id as string,
+    type: row.type as Transaction["type"],
+    amountCents: row.amount_cents as number,
+    paymentMode: (row.payment_mode as Transaction["paymentMode"]) ?? null,
+    note: (row.note as string | null) ?? null,
+    transactionDate: row.transaction_date as string,
+    createdAt: row.created_at as string,
+  };
 }
 
-export function listCustomers(khataBookId: string): Customer[] {
-  return customers
-    .filter((c) => c.khataBookId === khataBookId)
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+function mapReminder(row: Row): Reminder {
+  return {
+    id: row.id as string,
+    customerId: row.customer_id as string,
+    scheduledFor: row.scheduled_for as string,
+    channel: row.channel as Reminder["channel"],
+    status: row.status as Reminder["status"],
+    createdAt: row.created_at as string,
+  };
 }
 
-export function getCustomer(id: string): Customer | undefined {
-  return customers.find((c) => c.id === id);
+// Picks the current user's first khata book (the trigger in 0001_init.sql
+// creates one, "My Shop", the moment they first sign in). Multiple books
+// (S08) aren't built yet — see replica/build-log.md — so every screen that
+// needs "the" book uses this one.
+export async function getDefaultBook(): Promise<KhataBook> {
+  const user = await requireUser();
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("khata_books")
+    .select("id, business_name, book_type")
+    .eq("owner_id", user.id)
+    .is("deleted_at", null)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .single();
+
+  if (error || !data) {
+    throw new Error(`No khata book found for user ${user.id}: ${error?.message}`);
+  }
+
+  return { id: data.id, businessName: data.business_name, bookType: data.book_type };
 }
 
-export function createCustomer(input: {
+export async function listCustomers(khataBookId: string): Promise<Customer[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("customers")
+    .select("*")
+    .eq("khata_book_id", khataBookId)
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false });
+
+  if (error) throw new Error(`listCustomers: ${error.message}`);
+  return (data ?? []).map(mapCustomer);
+}
+
+export async function getCustomer(id: string): Promise<Customer | undefined> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("customers")
+    .select("*")
+    .eq("id", id)
+    .is("deleted_at", null)
+    .maybeSingle();
+
+  if (error) throw new Error(`getCustomer: ${error.message}`);
+  return data ? mapCustomer(data) : undefined;
+}
+
+export async function createCustomer(input: {
   khataBookId: string;
   name: string;
   phoneNumber: string | null;
-}): Customer {
-  const customer: Customer = {
-    id: freshId("cust"),
-    khataBookId: input.khataBookId,
-    name: input.name,
-    phoneNumber: input.phoneNumber,
-    createdAt: new Date().toISOString(),
-  };
-  customers = [...customers, customer];
-  return customer;
+}): Promise<Customer> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("customers")
+    .insert({
+      khata_book_id: input.khataBookId,
+      name: input.name,
+      phone_number: input.phoneNumber,
+    })
+    .select("*")
+    .single();
+
+  if (error || !data) throw new Error(`createCustomer: ${error?.message}`);
+  return mapCustomer(data);
 }
 
-export function listTransactions(customerId: string): Transaction[] {
-  return transactions
-    .filter((t) => t.customerId === customerId)
-    .sort((a, b) => b.transactionDate.localeCompare(a.transactionDate) || b.createdAt.localeCompare(a.createdAt));
+export async function listTransactions(customerId: string): Promise<Transaction[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("transactions")
+    .select("*")
+    .eq("customer_id", customerId)
+    .is("deleted_at", null)
+    .order("transaction_date", { ascending: false })
+    .order("created_at", { ascending: false });
+
+  if (error) throw new Error(`listTransactions: ${error.message}`);
+  return (data ?? []).map(mapTransaction);
 }
 
-export function addTransaction(input: {
+export async function addTransaction(input: {
   customerId: string;
   khataBookId: string;
   type: Transaction["type"];
@@ -121,58 +142,102 @@ export function addTransaction(input: {
   paymentMode: Transaction["paymentMode"];
   note: string | null;
   transactionDate: string;
-}): Transaction {
-  const txn: Transaction = {
-    id: freshId("txn"),
-    createdAt: new Date().toISOString(),
-    ...input,
-  };
-  transactions = [...transactions, txn];
-  return txn;
+}): Promise<Transaction> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("transactions")
+    .insert({
+      customer_id: input.customerId,
+      khata_book_id: input.khataBookId,
+      type: input.type,
+      amount_cents: input.amountCents,
+      payment_mode: input.paymentMode,
+      note: input.note,
+      transaction_date: input.transactionDate,
+      client_created_at: new Date().toISOString(), // no offline capture yet — see build-log.md
+    })
+    .select("*")
+    .single();
+
+  if (error || !data) throw new Error(`addTransaction: ${error?.message}`);
+  return mapTransaction(data);
 }
 
 // Positive => customer owes the shop ("you'll get"). Negative => the shop
-// owes the customer ("you'll give"). See replica/design/components.md.
-export function getCustomerBalanceCents(customerId: string): number {
-  return listTransactions(customerId).reduce(
+// owes the customer ("you'll give"). Computed in JS over the (small,
+// per-customer) transaction list rather than a SQL aggregate — fine at this
+// scale; revisit if a single customer's history grows into the thousands.
+export async function getCustomerBalanceCents(customerId: string): Promise<number> {
+  const transactions = await listTransactions(customerId);
+  return transactions.reduce(
     (balance, t) => balance + (t.type === "you_gave" ? t.amountCents : -t.amountCents),
     0,
   );
 }
 
-export function listReminders(customerId: string): Reminder[] {
-  return reminders
-    .filter((r) => r.customerId === customerId)
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+export async function listReminders(customerId: string): Promise<Reminder[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("reminders")
+    .select("*")
+    .eq("customer_id", customerId)
+    .order("created_at", { ascending: false });
+
+  if (error) throw new Error(`listReminders: ${error.message}`);
+  return (data ?? []).map(mapReminder);
 }
 
-export function getReminder(id: string): Reminder | undefined {
-  return reminders.find((r) => r.id === id);
+export async function getReminder(id: string): Promise<Reminder | undefined> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("reminders").select("*").eq("id", id).maybeSingle();
+
+  if (error) throw new Error(`getReminder: ${error.message}`);
+  return data ? mapReminder(data) : undefined;
 }
 
-export function scheduleReminder(input: {
+export async function scheduleReminder(input: {
   customerId: string;
   scheduledFor: string;
   channel: Reminder["channel"];
-}): Reminder {
-  const reminder: Reminder = {
-    id: freshId("rem"),
-    customerId: input.customerId,
-    scheduledFor: input.scheduledFor,
-    channel: input.channel,
-    status: "pending",
-    createdAt: new Date().toISOString(),
-  };
-  reminders = [...reminders, reminder];
-  return reminder;
+}): Promise<Reminder> {
+  const supabase = await createClient();
+
+  const customer = await getCustomer(input.customerId);
+  if (!customer) throw new Error(`scheduleReminder: no such customer ${input.customerId}`);
+
+  const { data, error } = await supabase
+    .from("reminders")
+    .insert({
+      khata_book_id: customer.khataBookId,
+      customer_id: input.customerId,
+      scheduled_for: input.scheduledFor,
+      channel: input.channel,
+      status: "pending",
+    })
+    .select("*")
+    .single();
+
+  if (error || !data) throw new Error(`scheduleReminder: ${error?.message}`);
+  return mapReminder(data);
 }
 
-export function setReminderStatus(id: string, status: Reminder["status"]): Reminder | undefined {
-  let updated: Reminder | undefined;
-  reminders = reminders.map((r) => {
-    if (r.id !== id) return r;
-    updated = { ...r, status };
-    return updated;
-  });
-  return updated;
+export async function setReminderStatus(
+  id: string,
+  status: Reminder["status"],
+  extra?: { whatsappMessageId?: string; razorpayPaymentLinkId?: string },
+): Promise<Reminder | undefined> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("reminders")
+    .update({
+      status,
+      ...(extra?.whatsappMessageId ? { whatsapp_message_id: extra.whatsappMessageId } : {}),
+      ...(extra?.razorpayPaymentLinkId ? { razorpay_payment_link_id: extra.razorpayPaymentLinkId } : {}),
+    })
+    .eq("id", id)
+    .select("*")
+    .maybeSingle();
+
+  if (error) throw new Error(`setReminderStatus: ${error.message}`);
+  return data ? mapReminder(data) : undefined;
 }

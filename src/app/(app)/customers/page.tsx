@@ -9,19 +9,21 @@ import {
 } from "@/lib/store";
 
 // S02 — Khata (customer list) home. Default landing screen.
-export default function CustomersPage() {
-  const book = getDefaultBook();
-  const customers = listCustomers(book.id);
+export default async function CustomersPage() {
+  const book = await getDefaultBook();
+  const customers = await listCustomers(book.id);
 
-  const rows: CustomerRowData[] = customers.map((c) => {
-    const txns = listTransactions(c.id);
-    return {
-      id: c.id,
-      name: c.name,
-      balanceCents: getCustomerBalanceCents(c.id),
-      lastEntryAt: txns[0]?.createdAt ?? null,
-    };
-  });
+  const rows: CustomerRowData[] = await Promise.all(
+    customers.map(async (c) => {
+      const txns = await listTransactions(c.id);
+      return {
+        id: c.id,
+        name: c.name,
+        balanceCents: await getCustomerBalanceCents(c.id),
+        lastEntryAt: txns[0]?.createdAt ?? null,
+      };
+    }),
+  );
 
   const totalToReceive = rows.reduce((sum, r) => sum + Math.max(r.balanceCents, 0), 0);
   const totalToGive = rows.reduce((sum, r) => sum + Math.max(-r.balanceCents, 0), 0);

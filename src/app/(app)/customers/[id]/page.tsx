@@ -4,11 +4,6 @@ import { BalanceBadge } from "@/components/ledger/BalanceBadge";
 import { TransactionRow } from "@/components/ledger/TransactionRow";
 import { getCustomer, getCustomerBalanceCents, listTransactions } from "@/lib/store";
 
-// This route reads request-time data (the id param, live in-memory store),
-// so it can't be statically prerendered — opt out of Next 16's default
-// prerender-blocking warning rather than wrapping in a pointless Suspense.
-export const instant = false;
-
 // S04 — Customer ledger detail.
 export default async function CustomerDetailPage({
   params,
@@ -16,14 +11,14 @@ export default async function CustomerDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const customer = getCustomer(id);
+  const customer = await getCustomer(id);
 
   if (!customer) {
     notFound();
   }
 
-  const balanceCents = getCustomerBalanceCents(customer.id);
-  const transactions = listTransactions(customer.id);
+  const balanceCents = await getCustomerBalanceCents(customer.id);
+  const transactions = await listTransactions(customer.id);
 
   return (
     <main className="mx-auto flex max-w-lg flex-col gap-4 p-4">

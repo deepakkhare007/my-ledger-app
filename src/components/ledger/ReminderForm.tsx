@@ -3,7 +3,11 @@
 import { useActionState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { scheduleAndSendReminderAction, type ActionState } from "@/lib/actions";
+import {
+  requestUpiPaymentAction,
+  scheduleAndSendReminderAction,
+  type ActionState,
+} from "@/lib/actions";
 
 const initialState: ActionState = {};
 
@@ -15,40 +19,51 @@ function defaultDateTime() {
 
 export function ReminderForm({ customerId }: { customerId: string }) {
   const [state, formAction, pending] = useActionState(scheduleAndSendReminderAction, initialState);
+  const [upiState, upiAction, upiPending] = useActionState(requestUpiPaymentAction, initialState);
 
   return (
-    <form action={formAction} className="flex flex-col gap-4">
-      <input type="hidden" name="customerId" value={customerId} />
+    <div className="flex flex-col gap-6">
+      <form action={formAction} className="flex flex-col gap-4">
+        <input type="hidden" name="customerId" value={customerId} />
 
-      <Input label="Send on" name="scheduledFor" type="datetime-local" defaultValue={defaultDateTime()} required />
+        <Input label="Send on" name="scheduledFor" type="datetime-local" defaultValue={defaultDateTime()} required />
 
-      <fieldset className="flex flex-col gap-2">
-        <legend className="text-sm font-medium text-ink">Send via</legend>
-        <div className="flex gap-3">
-          <label className="flex h-12 flex-1 items-center justify-center gap-2 rounded-md border border-input px-3 text-sm font-medium text-ink has-[:checked]:border-accent has-[:checked]:bg-accent/10">
-            <input type="radio" name="channel" value="whatsapp" defaultChecked className="accent-[var(--accent)]" />
-            WhatsApp
-          </label>
-          <label className="flex h-12 flex-1 items-center justify-center gap-2 rounded-md border border-input px-3 text-sm font-medium text-ink has-[:checked]:border-accent has-[:checked]:bg-accent/10">
-            <input type="radio" name="channel" value="sms" className="accent-[var(--accent)]" />
-            SMS
-          </label>
-        </div>
-      </fieldset>
+        <fieldset className="flex flex-col gap-2">
+          <legend className="text-sm font-medium text-ink">Send via</legend>
+          <div className="flex gap-3">
+            <label className="flex h-12 flex-1 items-center justify-center gap-2 rounded-md border border-input px-3 text-sm font-medium text-ink has-[:checked]:border-accent has-[:checked]:bg-accent/10">
+              <input type="radio" name="channel" value="whatsapp" defaultChecked className="accent-[var(--accent)]" />
+              WhatsApp
+            </label>
+            <label className="flex h-12 flex-1 items-center justify-center gap-2 rounded-md border border-input px-3 text-sm font-medium text-ink has-[:checked]:border-accent has-[:checked]:bg-accent/10">
+              <input type="radio" name="channel" value="sms" className="accent-[var(--accent)]" />
+              SMS
+            </label>
+          </div>
+        </fieldset>
 
-      {state.error && (
-        <p role="alert" className="text-sm text-danger">
-          {state.error}
-        </p>
-      )}
+        {state.error && (
+          <p role="alert" className="text-sm text-danger">
+            {state.error}
+          </p>
+        )}
 
-      <Button type="submit" className="w-full" loading={pending}>
-        Send reminder
-      </Button>
-      <p className="text-sm text-muted">
-        Simulated in this build — replica-backend wires this to the real WhatsApp Business
-        Cloud API, with SMS as a fallback.
-      </p>
-    </form>
+        <Button type="submit" className="w-full" loading={pending}>
+          Send reminder
+        </Button>
+      </form>
+
+      <form action={upiAction}>
+        <input type="hidden" name="customerId" value={customerId} />
+        {upiState.error && (
+          <p role="alert" className="mb-2 text-sm text-danger">
+            {upiState.error}
+          </p>
+        )}
+        <Button type="submit" variant="secondary" className="w-full" loading={upiPending}>
+          Request via UPI (Razorpay)
+        </Button>
+      </form>
+    </div>
   );
 }
