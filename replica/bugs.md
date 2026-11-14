@@ -64,9 +64,41 @@ Status: fixed in `ccb4f2d` — validates the raw string with a single
 `.refine()` instead of `z.coerce.number()`, so every bad input (empty,
 zero, negative, non-numeric) produces the one friendly message
 
+### BUG-003: MSG91 SMS fallback can't actually detect a failed send
+
+- Severity: S3 (the feature works — a message does reach MSG91's API and
+  WhatsApp-then-SMS fallback behaves correctly — but the "sent"/"failed"
+  status and the stored message id can't be trusted)
+- Flow / area: SMS fallback shared by reminders (F03) and the new
+  "Send bill" feature; `src/lib/sms.ts`
+- Found while: manually testing the new "Send bill" button against the
+  local stack with placeholder MSG91 credentials (2026-11-14)
+
+Steps
+1. Call `POST https://control.msg91.com/api/v5/flow/` with a bogus
+   `authkey`, a bogus `template_id`, or no `recipients` at all
+
+Expected: a 4xx/5xx response, or an error-shaped body, so `sendSmsReminder`/
+`sendSmsBill` can tell a real failure from a real send
+Actual: HTTP 200 with `{"message": "<hex>", "type": "success"}` every
+single time, regardless of how wrong the credentials or payload are —
+confirmed with `curl` directly against the real endpoint (see command in
+git history of this fix). MSG91's flow API doesn't validate synchronously;
+failure only shows up later in MSG91's own delivery-report dashboard.
+Separately, the code was also reading the wrong JSON field for the
+tracking id (`request_id` instead of `message`), so `messageId` was
+always `"unknown"` even on a genuine send.
+Status: the field-name bug is fixed (`src/lib/sms.ts`, reads `json.message`
+now). The "can't detect failure" part isn't a code bug to fix — MSG91
+genuinely gives no synchronous signal — so it's documented with a comment
+at both `sendSmsReminder` and `sendSmsBill` instead. Before relying on SMS
+delivery status in production, wire MSG91's delivery-report webhook or
+poll its report API; until then, a "Sent" bill/reminder only means the API
+call was accepted, not that the customer's phone received anything.
+
 ## To check (not reproduced, just flagged)
 
-- Nothing currently. If real Razorpay/WhatsApp/MSG91 test-mode credentials
-  are added later, re-run F03/F04's manual cases (see test-plan.md) — those
-  paths are entirely unverified beyond "the placeholder-credential failure
-  is handled gracefully."
+- Nothing currently beyond BUG-003 above. If real Razorpay/WhatsApp/MSG91
+  test-mode credentials are added later, re-run F03/F04's manual cases
+  (see test-plan.md) — those paths are entirely unverified beyond "the
+  placeholder-credential failure is handled gracefully."

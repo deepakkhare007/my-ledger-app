@@ -2,7 +2,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BalanceBadge } from "@/components/ledger/BalanceBadge";
 import { TransactionRow } from "@/components/ledger/TransactionRow";
-import { getCustomer, getCustomerBalanceCents, listTransactions } from "@/lib/store";
+import {
+  getCustomer,
+  getCustomerBalanceCents,
+  listSentBillTransactionIds,
+  listTransactions,
+} from "@/lib/store";
 
 // S04 — Customer ledger detail.
 export default async function CustomerDetailPage({
@@ -19,6 +24,7 @@ export default async function CustomerDetailPage({
 
   const balanceCents = await getCustomerBalanceCents(customer.id);
   const transactions = await listTransactions(customer.id);
+  const sentBillIds = await listSentBillTransactionIds(transactions.map((t) => t.id));
 
   return (
     <main className="mx-auto flex max-w-lg flex-col gap-4 p-4">
@@ -61,7 +67,7 @@ export default async function CustomerDetailPage({
         ) : (
           <div className="rounded-lg border border-border bg-bg px-4">
             {transactions.map((t) => (
-              <TransactionRow key={t.id} transaction={t} />
+              <TransactionRow key={t.id} transaction={t} billSent={sentBillIds.has(t.id)} />
             ))}
           </div>
         )}

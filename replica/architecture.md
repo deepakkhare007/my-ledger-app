@@ -186,6 +186,9 @@ Full file: `replica/schema.sql`.
 | POST /api/webhooks/razorpay | Razorpay → us: marks a reminder/transaction paid | Razorpay (signature-verified) | Razorpay payload | `200` | F04 |
 | POST /api/webhooks/whatsapp | Meta → us: delivery/read status, and inbound replies (opt-out keywords) | Meta (signature-verified) | Meta payload | `200` | F03 |
 | GET /api/customers/:id/report | generates a PDF statement for a date range, stores it, returns a signed URL | signed-in owner | `?from&to` | `{pdf_url}` | F05 |
+| (server action) parseVoiceEntryAction | transcript → structured entry via Claude NLU (no HTTP route — a Next.js Server Action) | signed-in owner | `transcript: string` | `{ok, data: {type, amountRupees, note, matchedCustomerId, ...}}` | voice entry |
+| (server action) confirmVoiceTransactionAction | confirms the parsed entry, creates the customer if new, records the transaction | signed-in owner | form: customerId\|newCustomerName, type, amount, note, date | redirect | voice entry |
+| (server action) sendBillAction | sends one transaction's receipt via WhatsApp (falls back to SMS), logs to `bill_sends` | signed-in owner | form: transactionId | `{error?}` | bill send |
 | POST /api/invoices | creates a GST/non-GST invoice, computes tax type server-side | signed-in owner (v2) | `{party_id, invoice_type, lines[]}` | `{invoice_id, pdf_url}` | F07 |
 | GET /api/invoices/:id/pdf | re-fetches a generated invoice PDF | signed-in owner (v2) | — | `{pdf_url}` | F07 |
 
@@ -206,6 +209,33 @@ Jobs (Supabase Edge Function + pg_cron):
 
 ## The parts that bite
 
+- **Voice entry's one paid-per-call dependency.** Everything else in this app is either
+  free (Supabase, Web Speech API) or pay-per-send (WhatsApp/SMS, already priced into the
+  business). Voice entry adds `ANTHROPIC_API_KEY` — a small model call
+  (`claude-haiku-5-5`) per spoken entry, to turn free-form Hindi/English/Hinglish speech
+  into structured fields reliably (word-order varies: "Ramesh ko 500 diye" vs "500 rupaye
+  Ramesh ko diye" vs "Ramesh se 500 liye" — a regex/keyword parser can't track that).
+  Web Speech API itself is Chrome-only (`SpeechRecognition`/`webkitSpeechRecognition`),
+  so voice entry is a progressive enhancement — the typed Add Entry form is always there
+  as the fallback on unsupported browsers, checked client-side via feature detection (not
+  user-agent sniffing).
+- **Bill send is manual, not automatic, by design.** A "Send bill" button per transaction
+  (not fired on every save) so a customer who never asked for WhatsApp/SMS receipts
+  doesn't get one every single time a shopkeeper records a sale. It reuses the same
+  WhatsApp-then-SMS-fallback path as reminders, but through its own approved WhatsApp
+  template (`transaction_receipt`) and its own MSG91 template id, since the two messages
+  say different things and both channels require their templates pre-registered.
+- **MSG91's flow API gives no synchronous failure signal.** Confirmed by hand while
+  building bill send: `POST /api/v5/flow/` returns HTTP 200 `{"type":"success"}` even for
+  a bogus authkey or template id — auth/template errors only surface later in MSG91's own
+  delivery-report dashboard. So a "sent" status via this path means "MSG91 accepted the
+  API call," not "the customer's phone received anything." See `replica/bugs.md`
+  (BUG-003) and the comment in `src/lib/sms.ts`.
+- **Inventory stays a clean deferral, not a missing foundation.** The shop owner asked to
+  skip inventory for v1 but expand into it later. `inventory_items` is already in the
+  schema (`0001_init.sql`) with no code path writing to it yet, and `transactions` has no
+  `inventory_item_id` column — so adding stock tracking later is additive (one migration
+  column + one UI field), not a rework of the ledger.
 - **Offline conflict resolution.** Last-write-wins by `updated_at`, and every row's `id` is
   generated on the client, so a retried `sync/push` after a dropped connection is a no-op
   upsert, not a duplicate transaction. This is deliberately simple because the real-world

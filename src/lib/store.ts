@@ -1,7 +1,7 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth";
-import type { Customer, KhataBook, Reminder, Transaction } from "./types";
+import type { BillSend, Customer, KhataBook, Reminder, Transaction } from "./types";
 
 // Real Supabase-backed data layer. Same exported function names/shapes as
 // the in-memory one replica-build wrote (src/lib/store.ts, now replaced) —
@@ -35,6 +35,16 @@ function mapTransaction(row: Row): Transaction {
     paymentMode: (row.payment_mode as Transaction["paymentMode"]) ?? null,
     note: (row.note as string | null) ?? null,
     transactionDate: row.transaction_date as string,
+    createdAt: row.created_at as string,
+  };
+}
+
+function mapBillSend(row: Row): BillSend {
+  return {
+    id: row.id as string,
+    transactionId: row.transaction_id as string,
+    channel: row.channel as BillSend["channel"],
+    status: row.status as BillSend["status"],
     createdAt: row.created_at as string,
   };
 }
@@ -163,6 +173,19 @@ export async function addTransaction(input: {
   return mapTransaction(data);
 }
 
+export async function getTransaction(id: string): Promise<Transaction | undefined> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("transactions")
+    .select("*")
+    .eq("id", id)
+    .is("deleted_at", null)
+    .maybeSingle();
+
+  if (error) throw new Error(`getTransaction: ${error.message}`);
+  return data ? mapTransaction(data) : undefined;
+}
+
 // Positive => customer owes the shop ("you'll get"). Negative => the shop
 // owes the customer ("you'll give"). Computed in JS over the (small,
 // per-customer) transaction list rather than a SQL aggregate — fine at this
@@ -240,4 +263,47 @@ export async function setReminderStatus(
 
   if (error) throw new Error(`setReminderStatus: ${error.message}`);
   return data ? mapReminder(data) : undefined;
+}
+
+export async function createBillSend(input: {
+  khataBookId: string;
+  transactionId: string;
+  channel: BillSend["channel"];
+  status: BillSend["status"];
+  error?: string;
+  providerMessageId?: string;
+}): Promise<BillSend> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("bill_sends")
+    .insert({
+      khata_book_id: input.khataBookId,
+      transaction_id: input.transactionId,
+      channel: input.channel,
+      status: input.status,
+      error: input.error ?? null,
+      provider_message_id: input.providerMessageId ?? null,
+    })
+    .select("*")
+    .single();
+
+  if (error || !data) throw new Error(`createBillSend: ${error?.message}`);
+  return mapBillSend(data);
+}
+
+// Which of these transaction ids already have at least one successful bill
+// send — enough for the UI to show "Sent" vs "Send bill" without a row per
+// transaction, since a shopkeeper only cares whether it went out, not the
+// full send history.
+export async function listSentBillTransactionIds(transactionIds: string[]): Promise<Set<string>> {
+  if (transactionIds.length === 0) return new Set();
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("bill_sends")
+    .select("transaction_id")
+    .in("transaction_id", transactionIds)
+    .eq("status", "sent");
+
+  if (error) throw new Error(`listSentBillTransactionIds: ${error.message}`);
+  return new Set((data ?? []).map((r) => r.transaction_id as string));
 }

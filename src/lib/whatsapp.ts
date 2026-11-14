@@ -60,6 +60,63 @@ export async function sendWhatsAppReminder(input: {
   return { messageId };
 }
 
+// Same shape as sendWhatsAppReminder but a different approved template
+// ("transaction_receipt") — a bill confirms what was just recorded, a
+// reminder asks for money outstanding, and WhatsApp template approval is
+// per-template, so they can't share one. Keep the variable count fixed
+// (5) since an approved template's body text and slot count can't change
+// without re-approval.
+export async function sendWhatsAppBill(input: {
+  toE164: string;
+  shopName: string;
+  customerName: string;
+  entryLabel: string; // "You Gave" | "You Got"
+  amountRupees: string;
+  balanceRupees: string;
+}): Promise<{ messageId: string }> {
+  const phoneNumberId = env("WHATSAPP_PHONE_NUMBER_ID");
+  const accessToken = env("WHATSAPP_ACCESS_TOKEN");
+
+  const res = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${phoneNumberId}/messages`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      to: input.toE164.replace("+", ""),
+      type: "template",
+      template: {
+        name: "transaction_receipt",
+        language: { code: "en" },
+        components: [
+          {
+            type: "body",
+            parameters: [
+              { type: "text", text: input.shopName },
+              { type: "text", text: input.entryLabel },
+              { type: "text", text: input.amountRupees },
+              { type: "text", text: input.customerName },
+              { type: "text", text: input.balanceRupees },
+            ],
+          },
+        ],
+      },
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`WhatsApp bill send failed (${res.status}): ${body}`);
+  }
+
+  const json = await res.json();
+  const messageId = json.messages?.[0]?.id;
+  if (!messageId) throw new Error("WhatsApp send returned no message id");
+  return { messageId };
+}
+
 // GET /api/webhooks/whatsapp verification handshake: Meta calls this once
 // when you register the webhook URL in the dashboard.
 export function verifyWebhookChallenge(mode: string | null, token: string | null): boolean {

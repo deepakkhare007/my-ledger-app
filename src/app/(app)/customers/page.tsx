@@ -41,13 +41,21 @@ export default async function CustomersPage() {
         </div>
       </div>
 
-      {/* Styled as a primary Button, but rendered as a single <a> to /customers/new (S03) */}
-      <Link
-        href="/customers/new"
-        className="flex h-12 w-full items-center justify-center rounded-md bg-accent px-5 text-base font-semibold text-on-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
-      >
-        + Add customer
-      </Link>
+      <div className="grid grid-cols-2 gap-3">
+        {/* Styled as a primary Button, but rendered as a single <a> to /customers/new (S03) */}
+        <Link
+          href="/customers/new"
+          className="flex h-12 items-center justify-center rounded-md bg-accent px-4 text-base font-semibold text-on-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+        >
+          + Add customer
+        </Link>
+        <Link
+          href="/voice-entry"
+          className="flex h-12 items-center justify-center gap-2 rounded-md border border-border bg-bg px-4 text-base font-semibold text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        >
+          <span aria-hidden="true">🎙️</span> Voice entry
+        </Link>
+      </div>
 
       <CustomerList customers={rows} />
     </main>

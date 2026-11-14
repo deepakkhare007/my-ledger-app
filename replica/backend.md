@@ -19,6 +19,33 @@ setup guide — re-read it before `/replica-deploy`.
 - **Jobs**: a Supabase Edge Function (`supabase/functions/reminder-dispatch`)
   on pg_cron, per architecture.md.
 
+## Dev-only OTP bypass (testing with any phone number)
+
+Local Supabase phone auth only works for the two numbers seeded in
+`[auth.sms.test_otp]`. To test with any phone number instead of remembering
+those two, set `DEV_OTP_BYPASS_CODE` in `.env.local` (e.g. `000000`) and
+restart the dev server. Then on `/login`, typing *any* phone number and
+that one fixed code signs you in — no real OTP involved.
+
+- `src/lib/actions.ts`: `requestOtpAction` skips the real `signInWithOtp`
+  call entirely when the bypass is active; `verifyOtpAction` checks the
+  submitted code against `DEV_OTP_BYPASS_CODE` before ever calling the
+  real `verifyOtp`.
+- `signInViaDevBypass`: mints a session via a deterministic password
+  (derived from the phone + the bypass code) instead of a real phone
+  verification — tries signing in first (so a repeat login with the same
+  number just works), and only creates the auth user on a genuinely new
+  number. A number that already has a *real* account (e.g. a seeded
+  test_otp number) gets a clear error instead of silently failing, since
+  there's no bypass password to match against it.
+- Double-guarded: hard-disabled whenever `NODE_ENV === "production"`, on
+  top of simply never setting the env var outside `.env.local`.
+- Deliberately avoids `admin.auth.admin.listUsers()` for an "update this
+  user's password" fallback — confirmed by hand that this local Supabase
+  CLI's `listUsers` endpoint returns a genuine 500 ("Database error
+  finding users") regardless of input (`curl .../auth/v1/admin/users`
+  reproduces it directly). Not something to fix in our code; just avoided.
+
 ## Local setup (Docker Desktop)
 
 1. Have Docker Desktop running.
@@ -141,14 +168,56 @@ the old convention).
   expands with usage history, and template approval has its own lead time.
   Start that process in Meta Business Manager well before you need it live.
 
+## Voice entry (speak a transaction instead of typing)
+
+- `src/components/ledger/VoiceEntryFlow.tsx`: records speech client-side via
+  the browser's Web Speech API (`SpeechRecognition`/`webkitSpeechRecognition`
+  — Chrome/Chromium only, feature-detected so other browsers just don't see
+  the mic button and keep the regular typed form). Hindi (`hi-IN`) or
+  English (`en-IN`) based on the shopkeeper's language setting.
+- `src/lib/voice.ts`: sends the transcript plus the book's own customer list
+  to Claude (`claude-haiku-5-5`) via tool-use, forcing a fixed JSON shape
+  out of free-form speech — handles word-order variation ("Ramesh ko 500
+  diye" vs "500 rupaye Ramesh ko diye") that a keyword parser can't.
+  Needs `ANTHROPIC_API_KEY`.
+- `parseVoiceEntryAction` / `confirmVoiceTransactionAction`
+  (`src/lib/actions.ts`): parse, then an editable confirm screen (customer
+  match, type, amount, note — all changeable) before anything is saved, so
+  a misheard name or amount doesn't silently create a wrong entry.
+- Creating a new customer from the confirm screen reuses the same
+  `nameSchema`/`createCustomer` path as the regular Add Customer form —
+  no separate validation to keep in sync.
+
+## Bill send (receipt copy via WhatsApp/SMS)
+
+- `src/lib/bill.ts`: `sendBillNow` — same WhatsApp-then-SMS-fallback shape
+  as `src/lib/reminders.ts`'s `sendReminderNow`, but for "here's what was
+  just recorded" rather than "please pay what's outstanding."
+- `src/lib/whatsapp.ts` `sendWhatsAppBill` / `src/lib/sms.ts` `sendSmsBill`:
+  separate approved templates from the reminder ones —
+  **`transaction_receipt`** needs creating and approving in Meta Business
+  Manager (same process as `payment_reminder`), and `MSG91_BILL_TEMPLATE_ID`
+  needs its own DLT-registered template, since the wording differs.
+- `sendBillAction` (`src/lib/actions.ts`) + `SendBillButton.tsx`: manual,
+  per-transaction — not fired automatically on every save, so a customer
+  who never asked for receipts doesn't get one every time. Logs every
+  attempt to the new `bill_sends` table (`supabase/migrations/0002_bill_sends.sql`)
+  so the UI can show "Sent ✓" vs "Send bill" without guessing.
+- **Known limitation, confirmed by hand (see `replica/bugs.md` BUG-003):**
+  MSG91's flow API returns HTTP 200 `{"type":"success"}` even for bad
+  credentials or a missing template — there's no synchronous way to tell
+  a real send from a silently broken one. A "Sent ✓" via the SMS fallback
+  only means the API accepted the call, not that it reached a phone.
+
 ## Integrations summary
 
 | integration | official API | scopes/access needed | review/approval | rate limits |
 | --- | --- | --- | --- | --- |
 | Supabase Auth (phone) | Supabase JS/SSR | project anon + service-role keys | none (self-serve) | Supabase's own auth rate limits, plus our own 5-per-10-min on OTP requests |
 | Razorpay | Payment Links API | API key pair + webhook secret | none for test mode; live mode needs KYC/business verification | Razorpay API limits; we rate-limit "request UPI link" to 10/customer/hour |
-| WhatsApp Business Cloud API | Graph API | phone number ID + access token + app secret | Meta Business verification + template approval (**weeks**, start early) | tiered by sender reputation, starts ~250 conversations/day |
-| MSG91 | Flow API | auth key + template ID | DLT template registration (India SMS regulation) | provider-side, not yet rate-limited on our side beyond the WhatsApp-channel limiter |
+| WhatsApp Business Cloud API | Graph API | phone number ID + access token + app secret; two approved templates (`payment_reminder`, `transaction_receipt`) | Meta Business verification + template approval (**weeks**, start early) | tiered by sender reputation, starts ~250 conversations/day |
+| MSG91 | Flow API | auth key + two template IDs (`MSG91_TEMPLATE_ID`, `MSG91_BILL_TEMPLATE_ID`) | DLT template registration (India SMS regulation) each | provider-side, not yet rate-limited on our side beyond the WhatsApp-channel limiter; **no synchronous delivery confirmation either, see BUG-003** |
+| Anthropic | Messages API (tool use) | API key | none (self-serve) | we rate-limit voice parsing to 20/IP/10-min ourselves |
 
 ## Security checklist
 
@@ -198,5 +267,14 @@ the old convention).
   migration for the race-free numbering scheme architecture.md calls for,
   but no server code reads/writes it yet — that's scoped to v2, deliberately
   deferred
+- Voice entry and bill send are built but unverified end-to-end: voice
+  entry needs a real `ANTHROPIC_API_KEY` to test the NLU parsing at all
+  (fails fast without one), and bill send's WhatsApp path needs the new
+  `transaction_receipt` template approved in Meta Business Manager before
+  it can do more than fall back to SMS every time
+- Inventory stays deliberately out of scope for now, per the shop owner's
+  own call — but `inventory_items` already exists unused in the schema and
+  `transactions` has no FK to it, so adding stock tracking later doesn't
+  require reworking the ledger (see architecture.md's "parts that bite")
 
 Next: `/replica-test`.

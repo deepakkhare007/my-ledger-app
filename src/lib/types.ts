@@ -43,3 +43,11 @@ export type Reminder = {
   status: ReminderStatus;
   createdAt: string;
 };
+
+export type BillSend = {
+  id: string;
+  transactionId: string;
+  channel: "whatsapp" | "sms";
+  status: "sent" | "failed";
+  createdAt: string;
+};
